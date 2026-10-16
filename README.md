@@ -46,7 +46,13 @@ python3 cert_transparency_watcher.py example.com --days 90 --json
   in a cert that isn't allowlisted is flagged. Omit entirely to just list
   subdomains without flagging.
 - `--days N` — only show certs issued in the last N days (default 30).
-- `--json` — machine-readable output for piping into your own alerting.
+- `--json` — machine-readable output for piping into your own alerting
+  (same exit codes as the text report).
+- `--crtsh-url TEMPLATE` — query a crt.sh-compatible mirror instead of
+  crt.sh (`{}` is replaced by the URL-encoded query).
+
+A precertificate and its final certificate (two crt.sh rows, same serial)
+are counted once.
 
 Exit code is `1` if anything was flagged, `0` otherwise — safe to use in cron
 with normal alerting-on-nonzero-exit conventions.
@@ -78,3 +84,8 @@ Free to use, forever. If it's useful to you, there's a
 ## License
 
 MIT — see LICENSE.
+
+## Tests
+
+`tests/` exercises every option and check end-to-end (against a local server speaking crt.sh's JSON format, including 502/retry and broken-JSON responses) in Forgejo CI on
+Python 3.6 and current Python; `sh ci/run-tests.sh 3.13` reproduces it locally (needs docker).

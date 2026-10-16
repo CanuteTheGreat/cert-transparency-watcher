@@ -33,9 +33,9 @@ from datetime import datetime, timedelta, timezone
 CRTSH_URL = "https://crt.sh/?q={}&output=json"
 
 
-def fetch_certs(domain, timeout=20, retries=4):
+def fetch_certs(domain, timeout=20, retries=4, url_template=CRTSH_URL):
     import time
-    url = CRTSH_URL.format(urllib.parse.quote(f"%.{domain}"))
+    url = url_template.format(urllib.parse.quote(f"%.{domain}"))
     req = urllib.request.Request(url, headers={"User-Agent": "cert-transparency-watcher/1.0"})
     raw = ""
     last_err = None
@@ -45,12 +45,13 @@ def fetch_certs(domain, timeout=20, retries=4):
                 raw = resp.read().decode("utf-8", errors="replace")
             if raw.strip():
                 break
-        except (urllib.error.URLError, urllib.error.HTTPError) as e:
+        except (urllib.error.URLError, urllib.error.HTTPError, OSError) as e:
+            # OSError also covers raw socket resets/timeouts mid-read, which
+            # urllib does not always wrap in URLError.
             last_err = e
-        time.sleep(2 * (attempt + 1))  # crt.sh is a free community service and rate-limits/502s
-                                        # under load; back off and retry rather than failing hard
-    else:
-        pass
+        if attempt < retries - 1:
+            time.sleep(2 * (attempt + 1))  # crt.sh is a free community service and rate-limits/502s
+                                            # under load; back off and retry rather than failing hard
     if not raw.strip():
         if last_err:
             print(f"ERROR: could not reach crt.sh after {retries} attempts: {last_err}", file=sys.stderr)
@@ -91,10 +92,13 @@ def main():
                           "'@' means the bare domain. If omitted, all subdomains are reported without flagging.")
     ap.add_argument("--days", type=int, default=30, help="Only show certs issued in the last N days (default 30)")
     ap.add_argument("--json", action="store_true", help="Emit machine-readable JSON instead of text")
+    ap.add_argument("--crtsh-url", default=CRTSH_URL, metavar="TEMPLATE",
+                    help="crt.sh-compatible JSON endpoint, '{}' is replaced by the query "
+                         "(default: %(default)s) -- for a mirror or a local test server")
     args = ap.parse_args()
 
-    domain = args.domain.lower().strip()
-    entries = fetch_certs(domain)
+    domain = args.domain.lower().strip().rstrip(".")
+    entries = fetch_certs(domain, url_template=args.crtsh_url)
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=args.days)
     seen = {}  # dedupe by (name, issuer, entry_timestamp) since crt.sh returns one row per log entry
@@ -111,7 +115,9 @@ def main():
         names = set()
         for line in (e.get("name_value") or "").splitlines():
             names.add(line.strip().lower())
-        key = (frozenset(names), issuer, e.get("id"))
+        # crt.sh lists the precertificate and the final certificate as two
+        # entries (different ids, same serial) -- count each certificate once.
+        key = (frozenset(names), issuer, e.get("serial_number") or e.get("id"))
         if key in seen:
             continue
         seen[key] = True
@@ -140,9 +146,10 @@ def main():
 
     results.sort(key=lambda r: r["issued"] or "", reverse=True)
 
+    flagged = sum(1 for r in results if r["issuer_flagged"] or r["unexpected_subdomains"])
     if args.json:
-        print(json.dumps({"domain": domain, "days": args.days, "certs": results}, indent=2))
-        return
+        print(json.dumps({"domain": domain, "days": args.days, "flagged": flagged, "certs": results}, indent=2))
+        sys.exit(1 if flagged else 0)
 
     print(f"cert-transparency-watcher: {domain} — {len(results)} cert(s) in the last {args.days} day(s)\n")
     flags = 0
