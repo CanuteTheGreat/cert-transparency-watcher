@@ -40,4 +40,11 @@ path = "cert_transparency_watcher.py"
 only-include = ["cert_transparency_watcher.py"]
 
 [tool.hatch.build.targets.sdist]
-only-include = ["cert_transparency_watcher.py", "README.md", "LICENSE", "CHANGELOG.md", "tests"]
+only-include = ["cert_transparency_watcher.py", "README.md", "LICENSE", "CHANGELOG.md", "tests", "claims.json"]
+
+[tool.mutmut]
+# ci/mutation.sh (nightly workflow)
+source_paths = ["cert_transparency_watcher.py"]
+pytest_add_cli_args_test_selection = ["tests/"]
+also_copy = ["claims.json", "README.md", "CHANGELOG.md"]
+

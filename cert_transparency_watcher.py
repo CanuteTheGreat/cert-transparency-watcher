@@ -129,11 +129,14 @@ def fetch_certs(domain, source, crtsh_url, certspotter_url):
 
 
 def extract_subdomain(name_value, domain):
-    name_value = name_value.strip().lower()
-    if name_value.startswith("*."):
-        name_value = name_value[2:]
+    """'www.example.com' -> 'www', 'example.com' -> '@', '*.example.com' -> '*' (a wildcard is
+    valid for every subdomain, so it is its own label, never the apex), '*.dev.example.com' ->
+    '*.dev'; names outside the domain -> None."""
+    name_value = name_value.strip().lower().rstrip(".")
     if name_value == domain:
         return "@"
+    if name_value == "*." + domain:
+        return "*"
     if name_value.endswith("." + domain):
         return name_value[: -(len(domain) + 1)]
     return None  # unrelated name in SAN list (e.g. multi-domain cert)
@@ -197,7 +200,8 @@ def main(argv=None):
                          "If omitted, all issuers are reported without flagging.")
     ap.add_argument("--allow-subdomain", action="append", default=[],
                     help="Subdomain label considered expected, e.g. 'www' or 'mail' (repeatable). "
-                         "'@' means the bare domain. If omitted, all subdomains are reported without flagging.")
+                         "'@' means the bare domain, '*' a wildcard certificate for every subdomain ('*.dev' for "
+                         "*.dev.<domain>). If omitted, all subdomains are reported without flagging.")
     ap.add_argument("--days", type=int, default=30, help="Only show certs issued in the last N days (default 30)")
     ap.add_argument("--json", action="store_true", help="Emit machine-readable JSON instead of text")
     ap.add_argument("--source", choices=["auto", "crtsh", "certspotter"], default="auto",

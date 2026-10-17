@@ -148,7 +148,7 @@ class TestWatcher(unittest.TestCase):
         self.assertEqual(sorted(ids), [1, 2, 3, 4, 6])  # #5 too old; #6/#7 one cert
         self.assertEqual(out["flagged"], 0)
         by_id = {c["id"]: c for c in out["certs"]}
-        self.assertEqual(by_id[2]["subdomains"], ["@"])                 # *.example.test -> apex label
+        self.assertEqual(by_id[2]["subdomains"], ["*", "@"])            # a wildcard is its own label, not the apex
         self.assertEqual(by_id[4]["subdomains"], ["mail"])              # unrelated SAN ignored
         self.assertEqual(out["certs"][0]["id"], 6)                      # newest first
 
@@ -169,7 +169,10 @@ class TestWatcher(unittest.TestCase):
                              "--allow-subdomain", "API", "--allow-subdomain", "mail")
         self.assertEqual(code, 1)
         flagged = {c["id"]: c["unexpected_subdomains"] for c in out["certs"] if c["unexpected_subdomains"]}
-        self.assertEqual(flagged, {3: ["staging"]})
+        self.assertEqual(flagged, {2: ["*"], 3: ["staging"]})  # the wildcard covers names nobody allowed
+        code, out = run_json("example.test", "--allow-subdomain", "www", "--allow-subdomain", "@",
+                             "--allow-subdomain", "api", "--allow-subdomain", "mail", "--allow-subdomain", "*")
+        self.assertEqual({c["id"] for c in out["certs"] if c["unexpected_subdomains"]}, {3})
 
     def test_text_report_and_exit_code(self):
         p = run("example.test", "--allow-issuer", "Let's Encrypt", "--allow-issuer", "Google")

@@ -61,7 +61,9 @@ cert-transparency-watcher example.com --state ~/.ct-state.json --fail-on-new \
   whose issuer doesn't match any allowed substring is flagged. Omit entirely
   to just list issuers without flagging.
 - `--allow-subdomain LABEL` (repeatable) — subdomain labels you expect (e.g.
-  `www`, `mail`, `api`). Use `@` for the bare/apex domain. Any subdomain seen
+  `www`, `mail`, `api`). Use `@` for the bare/apex domain and `*` for a wildcard
+  certificate (`*.example.com`, valid for every subdomain; `*.dev` for `*.dev.example.com`),
+  so a new wildcard cert is flagged unless you allow it. Any subdomain seen
   in a cert that isn't allowlisted is flagged. Omit entirely to just list
   subdomains without flagging.
 - `--state FILE` — remember every certificate seen (one file can hold many domains).

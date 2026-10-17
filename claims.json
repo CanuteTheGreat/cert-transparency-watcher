@@ -1,0 +1,209 @@
+{
+ "offline": false,
+ "optional_imports": [],
+ "hidden_options": [],
+ "claims": [
+  {
+   "id": "issuers",
+   "text": "Unexpected issuers",
+   "tests": [
+    "tests/test_cert_transparency_watcher.py::TestWatcher::test_allow_issuer_flags_unexpected_ca",
+    "tests/test_accuracy.py::TestCorpus::test_verdicts",
+    "tests/test_accuracy.py::TestCorpus::test_everything_expected_allowed_is_clean"
+   ],
+   "flags": [
+    "--allow-issuer"
+   ]
+  },
+  {
+   "id": "subdomains",
+   "text": "Unexpected subdomains",
+   "tests": [
+    "tests/test_cert_transparency_watcher.py::TestWatcher::test_allow_subdomain_flags_unexpected_names",
+    "tests/test_accuracy.py::TestCorpus::test_verdicts",
+    "tests/test_accuracy.py::TestCorpus::test_everything_expected_allowed_is_clean"
+   ],
+   "flags": [
+    "--allow-subdomain"
+   ]
+  },
+  {
+   "id": "recent",
+   "text": "Recent activity",
+   "tests": [
+    "tests/test_cert_transparency_watcher.py::TestWatcher::test_lists_recent_certs_without_flags",
+    "tests/test_cert_transparency_watcher.py::TestWatcher::test_days_option"
+   ],
+   "flags": [
+    "--days"
+   ]
+  },
+  {
+   "id": "crtsh-retry-fallback",
+   "text": "falls\nback to [Cert Spotter]",
+   "tests": [
+    "tests/test_cert_transparency_watcher.py::TestWatcher::test_retries_through_transient_502s",
+    "tests/test_cert_transparency_watcher.py::TestWatcher::test_gives_up_with_exit_2",
+    "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_cert_spotter_fallback_and_source_option",
+    "tests/test_cert_transparency_watcher.py::TestWatcher::test_concatenated_objects_are_repaired"
+   ],
+   "flags": [
+    "--source",
+    "--crtsh-url",
+    "--certspotter-url"
+   ]
+  },
+  {
+   "id": "issuer-opt",
+   "text": "`--allow-issuer SUBSTR` (repeatable)",
+   "tests": [
+    "tests/test_cert_transparency_watcher.py::TestWatcher::test_allow_issuer_flags_unexpected_ca"
+   ]
+  },
+  {
+   "id": "subdomain-opt",
+   "text": "`--allow-subdomain LABEL` (repeatable)",
+   "tests": [
+    "tests/test_cert_transparency_watcher.py::TestWatcher::test_allow_subdomain_flags_unexpected_names",
+    "tests/test_accuracy.py::TestCorpus::test_verdicts"
+   ]
+  },
+  {
+   "id": "state",
+   "text": "`--state FILE` \u2014 remember every certificate seen",
+   "tests": [
+    "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_state_reports_only_new_certificates",
+    "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_fail_on_new",
+    "tests/test_accuracy.py::TestCorpus::test_state_only_alerts_once"
+   ],
+   "flags": [
+    "--state",
+    "--fail-on-new"
+   ]
+  },
+  {
+   "id": "hooks",
+   "text": "`--exec CMD` / `--webhook URL`",
+   "tests": [
+    "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_exec_and_webhook_alerts",
+    "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_failed_hook_is_exit_2_and_keeps_alerting"
+   ],
+   "flags": [
+    "--exec",
+    "--webhook"
+   ]
+  },
+  {
+   "id": "source",
+   "text": "`--source auto|crtsh|certspotter`",
+   "tests": [
+    "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_cert_spotter_fallback_and_source_option"
+   ]
+  },
+  {
+   "id": "days",
+   "text": "`--days N` \u2014 only show certs issued in the last N days (default 30).",
+   "tests": [
+    "tests/test_cert_transparency_watcher.py::TestWatcher::test_days_option",
+    "tests/test_accuracy.py::TestCorpus::test_verdicts"
+   ]
+  },
+  {
+   "id": "json",
+   "text": "`--json` \u2014 machine-readable output",
+   "tests": [
+    "tests/test_cert_transparency_watcher.py::TestWatcher::test_lists_recent_certs_without_flags",
+    "tests/test_cert_transparency_watcher.py::TestWatcher::test_text_report_and_exit_code"
+   ],
+   "flags": [
+    "--json"
+   ]
+  },
+  {
+   "id": "urls",
+   "text": "`--crtsh-url TEMPLATE` / `--certspotter-url URL`",
+   "tests": [
+    "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_cert_spotter_fallback_and_source_option"
+   ]
+  },
+  {
+   "id": "dedupe",
+   "text": "A precertificate and its final certificate (two crt.sh rows, same serial)\nare counted once.",
+   "tests": [
+    "tests/test_cert_transparency_watcher.py::TestWatcher::test_lists_recent_certs_without_flags",
+    "tests/test_accuracy.py::TestCorpus::test_verdicts"
+   ]
+  },
+  {
+   "id": "exit-codes",
+   "text": "Exit codes: `1` if anything was flagged",
+   "tests": [
+    "tests/test_cert_transparency_watcher.py::TestWatcher::test_text_report_and_exit_code",
+    "tests/test_cert_transparency_watcher.py::TestWatcher::test_gives_up_with_exit_2",
+    "tests/test_cert_transparency_watcher.py::TestWatcher::test_unparseable_response_exit_2",
+    "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_failed_hook_is_exit_2_and_keeps_alerting"
+   ]
+  },
+  {
+   "id": "stdlib-only",
+   "text": "standard library only",
+   "tests": [
+    "tests/test_claims.py::TestClaims::test_stdlib_only"
+   ]
+  },
+  {
+   "id": "retries",
+   "text": "the tool\nretries automatically with backoff",
+   "tests": [
+    "tests/test_cert_transparency_watcher.py::TestWatcher::test_retries_through_transient_502s"
+   ]
+  },
+  {
+   "id": "install-pipx",
+   "text": "pipx install git+https://git.canutethegreat.com/CanuteTheGreat/cert-transparency-watcher.git",
+   "tests": [
+    "ci/install-channels.sh#pipx install -q \"git+$FORGEJO/CanuteTheGreat/$REPO.git\"",
+    ".forgejo/workflows/nightly.yml#ci/install-channels.sh"
+   ]
+  },
+  {
+   "id": "install-homebrew",
+   "text": "brew install canutethegreat/errant-tools/cert-transparency-watcher",
+   "tests": [
+    "repo:homebrew-errant-tools/Formula/cert-transparency-watcher.rb#test do",
+    "repo:homebrew-errant-tools/.forgejo/workflows/test.yml#ci/run-tests.sh"
+   ]
+  },
+  {
+   "id": "install-scoop",
+   "text": "scoop install errant-tools/cert-transparency-watcher",
+   "tests": [
+    "repo:scoop-errant-tools/bucket/cert-transparency-watcher.json#\"bin\"",
+    "repo:scoop-errant-tools/.forgejo/workflows/test.yml#ci/run-tests.sh"
+   ]
+  },
+  {
+   "id": "install-download",
+   "text": "https://errant.solutions/downloads/cert_transparency_watcher.py",
+   "tests": [
+    "ci/install-channels.sh#https://errant.solutions/downloads/$FILE"
+   ]
+  },
+  {
+   "id": "release-assets",
+   "text": "`SHA256SUMS` file",
+   "tests": [
+    "ci/install-channels.sh#sha256sum -c SHA256SUMS",
+    "ci/release.py#SHA256SUMS"
+   ]
+  },
+  {
+   "id": "python-versions",
+   "text": "Python 3.6+",
+   "tests": [
+    ".forgejo/workflows/test.yml#python: [\"3.6",
+    ".forgejo/workflows/nightly.yml#python: [\"3.6"
+   ]
+  }
+ ]
+}
