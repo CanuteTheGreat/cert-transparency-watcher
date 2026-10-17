@@ -28,7 +28,7 @@ Usage:
 Exit codes: 0 = nothing flagged, 1 = flagged (new, with --state) certificates,
 2 = CT sources unreachable/unparseable, an alert hook failed, or bad usage.
 """
-__version__ = "1.2.0"
+__version__ = "1.2.1"
 
 import argparse
 import json

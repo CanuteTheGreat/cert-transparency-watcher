@@ -34,7 +34,7 @@ publicly, for free — but almost nobody looks at it until after an incident.
 
 ```sh
 pipx install git+https://git.canutethegreat.com/CanuteTheGreat/cert-transparency-watcher.git        # latest release branch; puts `cert-transparency-watcher` on PATH
-pipx install git+https://git.canutethegreat.com/CanuteTheGreat/cert-transparency-watcher.git@v1.2.0  # a pinned release
+pipx install git+https://git.canutethegreat.com/CanuteTheGreat/cert-transparency-watcher.git@v1.2.1  # a pinned release
 brew install canutethegreat/errant-tools/cert-transparency-watcher   # after: brew tap canutethegreat/errant-tools https://git.canutethegreat.com/CanuteTheGreat/homebrew-errant-tools
 scoop install errant-tools/cert-transparency-watcher                 # after: scoop bucket add errant-tools https://git.canutethegreat.com/CanuteTheGreat/scoop-errant-tools
 ```

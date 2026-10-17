@@ -2,7 +2,7 @@
 
 All notable changes. Versions are git tags; each tag has a Forgejo release with checksums.
 
-## Unreleased
+## 1.2.1 - 2026-10-17
 
 - A wildcard certificate is its own subdomain label (`*`, or `*.dev` for `*.dev.example.com`) instead of counting as the apex: with `--allow-subdomain @` a new `*.example.com` certificate (valid for every subdomain) used to pass unflagged. Allow it with `--allow-subdomain '*'`.
 - Names in FQDN form (trailing dot) are matched like any other name.
