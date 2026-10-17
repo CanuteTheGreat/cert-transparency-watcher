@@ -105,7 +105,6 @@ def fetch_certspotter(domain, url=CERTSPOTTER_URL, timeout=30, max_pages=20):
             out.append({"id": e.get("id"), "issuer_name": issuer.get("name") or issuer.get("friendly_name") or "unknown",
                         "name_value": "\n".join(e.get("dns_names") or []),
                         "not_before": (e.get("not_before") or "").replace("Z", ""),
-                        "not_after": (e.get("not_after") or "").replace("Z", ""),
                         "serial_number": e.get("tbs_sha256") or e.get("cert_sha256") or e.get("id")})
         after = data[-1].get("id")
     return out

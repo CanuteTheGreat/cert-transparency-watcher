@@ -32,7 +32,9 @@
    "text": "Recent activity",
    "tests": [
     "tests/test_cert_transparency_watcher.py::TestWatcher::test_lists_recent_certs_without_flags",
-    "tests/test_cert_transparency_watcher.py::TestWatcher::test_days_option"
+    "tests/test_cert_transparency_watcher.py::TestWatcher::test_days_option",
+    "tests/test_contract.py::TestReport::test_unflagged_report",
+    "tests/test_contract.py::TestReport::test_flagged_report"
    ],
    "flags": [
     "--days"
@@ -70,11 +72,15 @@
   },
   {
    "id": "state",
-   "text": "`--state FILE` \u2014 remember every certificate seen",
+   "text": "`--state FILE` — remember every certificate seen",
    "tests": [
     "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_state_reports_only_new_certificates",
     "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_fail_on_new",
-    "tests/test_accuracy.py::TestCorpus::test_state_only_alerts_once"
+    "tests/test_accuracy.py::TestCorpus::test_state_only_alerts_once",
+    "tests/test_contract.py::TestStateFile::test_file_layout_and_other_domains_are_kept",
+    "tests/test_contract.py::TestStateFile::test_unreadable_state_is_exit_2_and_untouched",
+    "tests/test_contract.py::TestReport::test_state_report",
+    "tests/test_contract.py::TestReport::test_already_seen_certificates_are_listed_without_markers"
    ],
    "flags": [
     "--state",
@@ -86,7 +92,10 @@
    "text": "`--exec CMD` / `--webhook URL`",
    "tests": [
     "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_exec_and_webhook_alerts",
-    "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_failed_hook_is_exit_2_and_keeps_alerting"
+    "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_failed_hook_is_exit_2_and_keeps_alerting",
+    "tests/test_contract.py::TestWire::test_webhook_post_is_json_with_tool_user_agent_and_same_document_as_exec",
+    "tests/test_contract.py::TestHooks::test_exec_inherits_environment_and_its_output_stays_out_of_the_report",
+    "tests/test_contract.py::TestHooks::test_failed_exec_reports_status_and_stderr_tail"
    ],
    "flags": [
     "--exec",
@@ -97,12 +106,21 @@
    "id": "source",
    "text": "`--source auto|crtsh|certspotter`",
    "tests": [
-    "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_cert_spotter_fallback_and_source_option"
+    "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_cert_spotter_fallback_and_source_option",
+    "tests/test_contract.py::TestErrors::test_source_choices",
+    "tests/test_contract.py::TestCertSpotterRecords::test_fields_are_mapped_and_deduped_like_crtsh"
+   ]
+  },
+  {
+   "id": "certspotter-token",
+   "text": "`CERTSPOTTER_API_TOKEN` is sent if set",
+   "tests": [
+    "tests/test_contract.py::TestWire::test_certspotter_token_is_sent_only_when_set"
    ]
   },
   {
    "id": "days",
-   "text": "`--days N` \u2014 only show certs issued in the last N days (default 30).",
+   "text": "`--days N` — only show certs issued in the last N days (default 30).",
    "tests": [
     "tests/test_cert_transparency_watcher.py::TestWatcher::test_days_option",
     "tests/test_accuracy.py::TestCorpus::test_verdicts"
@@ -110,10 +128,11 @@
   },
   {
    "id": "json",
-   "text": "`--json` \u2014 machine-readable output",
+   "text": "`--json` — machine-readable output",
    "tests": [
     "tests/test_cert_transparency_watcher.py::TestWatcher::test_lists_recent_certs_without_flags",
-    "tests/test_cert_transparency_watcher.py::TestWatcher::test_text_report_and_exit_code"
+    "tests/test_cert_transparency_watcher.py::TestWatcher::test_text_report_and_exit_code",
+    "tests/test_contract.py::TestReport::test_already_seen_certificates_are_listed_without_markers"
    ],
    "flags": [
     "--json"
@@ -123,7 +142,8 @@
    "id": "urls",
    "text": "`--crtsh-url TEMPLATE` / `--certspotter-url URL`",
    "tests": [
-    "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_cert_spotter_fallback_and_source_option"
+    "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_cert_spotter_fallback_and_source_option",
+    "tests/test_contract.py::TestHelp::test_defaults_are_the_public_services"
    ]
   },
   {
@@ -131,7 +151,8 @@
    "text": "A precertificate and its final certificate (two crt.sh rows, same serial)\nare counted once.",
    "tests": [
     "tests/test_cert_transparency_watcher.py::TestWatcher::test_lists_recent_certs_without_flags",
-    "tests/test_accuracy.py::TestCorpus::test_verdicts"
+    "tests/test_accuracy.py::TestCorpus::test_verdicts",
+    "tests/test_contract.py::TestNames::test_dedupe_key_ignores_case_and_spacing"
    ]
   },
   {
@@ -141,7 +162,8 @@
     "tests/test_cert_transparency_watcher.py::TestWatcher::test_text_report_and_exit_code",
     "tests/test_cert_transparency_watcher.py::TestWatcher::test_gives_up_with_exit_2",
     "tests/test_cert_transparency_watcher.py::TestWatcher::test_unparseable_response_exit_2",
-    "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_failed_hook_is_exit_2_and_keeps_alerting"
+    "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_failed_hook_is_exit_2_and_keeps_alerting",
+    "tests/test_contract.py::TestErrors::test_all_sources_down_names_each_failure"
    ]
   },
   {
