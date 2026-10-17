@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cert-transparency-watcher"
+dynamic = ["version"]
+description = "Watch Certificate Transparency logs for new certificates, unexpected issuers and subdomains"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.6"
+authors = [{ name = "Errant Solutions", email = "hello@errant.solutions" }]
+keywords = ["certificate-transparency", "ct", "crt.sh", "tls", "monitoring"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+    "Topic :: System :: Systems Administration",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://errant.solutions/tools/cert-transparency-watcher.html"
+Source = "https://git.canutethegreat.com/CanuteTheGreat/cert-transparency-watcher"
+Changelog = "https://git.canutethegreat.com/CanuteTheGreat/cert-transparency-watcher/src/branch/main/CHANGELOG.md"
+Releases = "https://git.canutethegreat.com/CanuteTheGreat/cert-transparency-watcher/releases"
+
+[project.scripts]
+cert-transparency-watcher = "cert_transparency_watcher:main"
+
+[tool.hatch.version]
+path = "cert_transparency_watcher.py"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["cert_transparency_watcher.py"]
+
+[tool.hatch.build.targets.sdist]
+only-include = ["cert_transparency_watcher.py", "README.md", "LICENSE", "CHANGELOG.md", "tests"]

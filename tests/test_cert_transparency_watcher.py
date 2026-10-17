@@ -9,8 +9,10 @@ paths that crt.sh produces under load.
 import datetime
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -44,14 +46,44 @@ EXAMPLE = [
     entry(7, ["api.example.test"], LE, 1, serial="abc123"),
 ]
 
-STATE = {"fail_first": 0, "calls": 0}
+STATE = {"fail_first": 0, "calls": 0, "spotter": "down", "spotter_calls": 0, "hooks": [], "hook_status": 200}
+SPOTTER = [  # Cert Spotter issuances (expand=dns_names,issuer), two pages
+    [{"id": "9001", "tbs_sha256": "aa11", "dns_names": ["example.test", "www.example.test"],
+      "not_before": days_ago(2) + "Z", "not_after": days_ago(-80) + "Z", "issuer": {"name": LE}},
+     {"id": "9002", "tbs_sha256": "bb22", "dns_names": ["vpn.example.test"],
+      "not_before": days_ago(4) + "Z", "not_after": days_ago(-80) + "Z", "issuer": {"name": ODD}}],
+    [{"id": "9003", "tbs_sha256": "cc33", "dns_names": ["old.example.test"],
+      "not_before": days_ago(300) + "Z", "not_after": days_ago(-10) + "Z", "issuer": {"name": LE}}],
+]
 
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *a):
         pass
 
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length") or 0)
+        STATE["hooks"].append((self.path, self.headers.get("Content-Type"), json.loads(self.rfile.read(n))))
+        self.send_response(STATE["hook_status"])
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def do_GET(self):
+        if self.path.startswith("/certspotter"):
+            STATE["spotter_calls"] += 1
+            q = parse_qs(urlparse(self.path).query)
+            if STATE["spotter"] != "up" or q.get("domain") != ["example.test"]:
+                self.send_response(503)
+                self.end_headers()
+                return
+            assert q["include_subdomains"] == ["true"] and sorted(q["expand"]) == ["dns_names", "issuer"]
+            page = {None: 0, "9002": 1}.get(q.get("after", [None])[0], 2)
+            data = json.dumps(SPOTTER[page] if page < len(SPOTTER) else []).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         STATE["calls"] += 1
         q = parse_qs(urlparse(self.path).query).get("q", [""])[0]
         if STATE["fail_first"] > 0:
@@ -86,6 +118,9 @@ def setUpModule():
     SERVER = HTTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target=SERVER.serve_forever, daemon=True).start()
     URL = "http://127.0.0.1:%d/?q={}&output=json" % SERVER.server_address[1]
+    global SPOTTER_URL, HOOK_URL
+    SPOTTER_URL = "http://127.0.0.1:%d/certspotter" % SERVER.server_address[1]
+    HOOK_URL = "http://127.0.0.1:%d/hook" % SERVER.server_address[1]
 
 
 def tearDownModule():
@@ -93,7 +128,7 @@ def tearDownModule():
 
 
 def run(*args):
-    return subprocess.run([sys.executable, TOOL, "--crtsh-url", URL] + list(args),
+    return subprocess.run([sys.executable, TOOL, "--crtsh-url", URL, "--certspotter-url", SPOTTER_URL] + list(args),
                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, timeout=120)
 
 
@@ -104,8 +139,7 @@ def run_json(*args):
 
 class TestWatcher(unittest.TestCase):
     def setUp(self):
-        STATE["fail_first"] = 0
-        STATE["calls"] = 0
+        STATE.update(fail_first=0, calls=0, spotter="down", spotter_calls=0, hooks=[], hook_status=200)
 
     def test_lists_recent_certs_without_flags(self):
         code, out = run_json("example.test")
@@ -159,7 +193,11 @@ class TestWatcher(unittest.TestCase):
         p = run("example.test")
         self.assertEqual(p.returncode, 2)
         self.assertIn("could not reach crt.sh after 4 attempts", p.stderr)
+        self.assertIn("Cert Spotter", p.stderr)  # the fallback was tried too, and it's down
         self.assertEqual(STATE["calls"], 4)
+        p = run("example.test", "--source", "crtsh")
+        self.assertEqual(p.returncode, 2)
+        self.assertNotIn("Cert Spotter", p.stderr)
 
     def test_concatenated_objects_are_repaired(self):
         code, out = run_json("concat.test")
@@ -179,8 +217,94 @@ class TestWatcher(unittest.TestCase):
     def test_help(self):
         p = subprocess.run([sys.executable, TOOL, "--help"], stdout=subprocess.PIPE, universal_newlines=True)
         self.assertEqual(p.returncode, 0)
-        for opt in ("--allow-issuer", "--allow-subdomain", "--days", "--json", "--crtsh-url"):
+        for opt in ("--allow-issuer", "--allow-subdomain", "--days", "--json", "--crtsh-url", "--state",
+                    "--source", "--exec", "--webhook", "--fail-on-new"):
             self.assertIn(opt, p.stdout)
+
+
+class TestFallbackStateAndHooks(unittest.TestCase):
+    def setUp(self):
+        STATE.update(fail_first=0, calls=0, spotter="down", spotter_calls=0, hooks=[], hook_status=200)
+        self.tmp = tempfile.mkdtemp()
+        self.state = os.path.join(self.tmp, "ct-state.json")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_cert_spotter_fallback_and_source_option(self):
+        STATE.update(fail_first=99, spotter="up")
+        code, out = run_json("example.test", "--allow-issuer", "Let's Encrypt")
+        self.assertEqual(out["source"], "Cert Spotter")
+        self.assertEqual(sorted(c["id"] for c in out["certs"]), ["9001", "9002"])  # 9003 older than 30 days
+        self.assertEqual(code, 1)
+        self.assertEqual([c["id"] for c in out["certs"] if c["issuer_flagged"]], ["9002"])
+        self.assertEqual(STATE["spotter_calls"], 3)  # two pages + the empty one that ends paging
+        STATE.update(fail_first=0, calls=0)
+        code, out = run_json("example.test", "--source", "certspotter")
+        self.assertEqual(out["source"], "Cert Spotter")
+        self.assertEqual(STATE["calls"], 0)
+
+    def test_state_reports_only_new_certificates(self):
+        args = ("example.test", "--allow-issuer", "Let's Encrypt", "--allow-issuer", "Google", "--state", self.state)
+        code, out = run_json(*args)
+        self.assertEqual((code, out["flagged"], out["new"]), (1, 1, 5))  # first run: everything is new
+        with open(self.state) as f:
+            self.assertEqual(len(json.load(f)["domains"]["example.test"]), 5)
+        code, out = run_json(*args)
+        self.assertEqual((code, out["flagged"], out["new"]), (0, 0, 0))  # same certs: nothing re-alerts
+        self.assertFalse(any(c["new"] for c in out["certs"]))
+        EXAMPLE.append(entry(8, ["new-thing.example.test"], ODD, 0))
+        try:
+            code, out = run_json(*args)
+            p = run(*args)
+        finally:
+            EXAMPLE.pop()
+        self.assertEqual((code, out["flagged"], out["new"]), (1, 1, 1))
+        self.assertEqual([c["id"] for c in out["certs"] if c["new"]], [8])
+        self.assertIn("0 cert(s) new since the last run", p.stdout)  # the JSON run already recorded #8
+
+    def test_fail_on_new(self):
+        code, _ = run_json("example.test", "--state", self.state, "--fail-on-new")
+        self.assertEqual(code, 1)
+        code, _ = run_json("example.test", "--state", self.state, "--fail-on-new")
+        self.assertEqual(code, 0)
+        self.assertEqual(run("example.test", "--fail-on-new").returncode, 2)  # needs --state
+
+    def test_exec_and_webhook_alerts(self):
+        out_file = os.path.join(self.tmp, "alert.json")
+        cmd = "cat > %s; echo \"$CTW_DOMAIN $CTW_ALERTS\" >> %s.env" % (out_file, out_file)
+        code, _ = run_json("example.test", "--allow-issuer", "Let's Encrypt", "--allow-issuer", "Google",
+                           "--exec", cmd, "--webhook", HOOK_URL)
+        self.assertEqual(code, 1)
+        with open(out_file) as f:
+            alert = json.load(f)
+        self.assertEqual([a["id"] for a in alert["alerts"]], [3])
+        with open(out_file + ".env") as f:
+            self.assertEqual(f.read().strip(), "example.test 1")
+        self.assertEqual(len(STATE["hooks"]), 1)
+        path, ctype, body = STATE["hooks"][0]
+        self.assertEqual((path, ctype), ("/hook", "application/json"))
+        self.assertEqual(body["alerts"][0]["issuer"], ODD)
+        # nothing flagged: no hook calls
+        STATE["hooks"] = []
+        run_json("example.test", "--webhook", HOOK_URL)
+        self.assertEqual(STATE["hooks"], [])
+
+    def test_failed_hook_is_exit_2_and_keeps_alerting(self):
+        STATE["hook_status"] = 500
+        args = ("example.test", "--allow-issuer", "Let's Encrypt", "--allow-issuer", "Google",
+                "--state", self.state, "--webhook", HOOK_URL)
+        p = run(*args)
+        self.assertEqual(p.returncode, 2)
+        self.assertIn("state not updated", p.stderr)
+        self.assertFalse(os.path.exists(self.state))
+        STATE["hook_status"] = 200
+        self.assertEqual(run(*args).returncode, 1)  # the alert wasn't lost
+        self.assertEqual(run("example.test", "--exec", "exit 3", "--allow-issuer", "nobody").returncode, 2)
+
+    def test_version(self):
+        p = subprocess.run([sys.executable, TOOL, "--version"], stdout=subprocess.PIPE, universal_newlines=True)
+        self.assertRegex(p.stdout, r"^cert-transparency-watcher \d+\.\d+\.\d+$")
 
 
 if __name__ == "__main__":

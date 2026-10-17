@@ -10,7 +10,9 @@ how subdomain takeovers, rogue internal CAs, and CA-level misissuance get
 caught early, if someone's watching.
 
 This tool queries [crt.sh](https://crt.sh) (a free, public CT log search
-service — no account, no API key) for a domain and flags:
+service — no account, no API key) for a domain and every name under it, falls
+back to [Cert Spotter](https://sslmate.com/certspotter/)'s free API when crt.sh
+is down or slow, and flags:
 
 - **Unexpected issuers** — a cert issued by a CA that isn't on your allowlist.
   Classic sign of a misissued cert, a compromised CA, or someone using a
@@ -28,13 +30,30 @@ Most teams have zero visibility into what certs exist for their own domains
 beyond the ones they issued themselves. CT logs already contain that data —
 publicly, for free — but almost nobody looks at it until after an incident.
 
+## Install
+
+```sh
+pipx install git+https://git.canutethegreat.com/CanuteTheGreat/cert-transparency-watcher.git        # latest release branch; puts `cert-transparency-watcher` on PATH
+pipx install git+https://git.canutethegreat.com/CanuteTheGreat/cert-transparency-watcher.git@v1.2.0  # a pinned release
+brew install canutethegreat/errant-tools/cert-transparency-watcher   # after: brew tap canutethegreat/errant-tools https://git.canutethegreat.com/CanuteTheGreat/homebrew-errant-tools
+scoop install errant-tools/cert-transparency-watcher                 # after: scoop bucket add errant-tools https://git.canutethegreat.com/CanuteTheGreat/scoop-errant-tools
+```
+
+Or download the single file (stdlib-only Python 3.6+) and run it directly:
+`curl -fsSLO https://errant.solutions/downloads/cert_transparency_watcher.py && python3 cert_transparency_watcher.py --help`.
+Every [release](https://git.canutethegreat.com/CanuteTheGreat/cert-transparency-watcher/releases) has a changelog, the wheel, the sdist and a `SHA256SUMS` file.
+Not on PyPI yet, so plain `pipx install cert-transparency-watcher` doesn't work until it's published there.
+
 ## Usage
 
 ```
-python3 cert_transparency_watcher.py example.com
-python3 cert_transparency_watcher.py example.com --allow-issuer "Let's Encrypt" --allow-issuer "Google Trust"
-python3 cert_transparency_watcher.py example.com --allow-subdomain www --allow-subdomain mail --allow-subdomain "@"
-python3 cert_transparency_watcher.py example.com --days 90 --json
+cert-transparency-watcher example.com
+cert-transparency-watcher example.com --allow-issuer "Let's Encrypt" --allow-issuer "Google Trust"
+cert-transparency-watcher example.com --allow-subdomain www --allow-subdomain mail --allow-subdomain "@"
+cert-transparency-watcher example.com --days 90 --json
+# daily cron: only certificates new since yesterday, and tell me
+cert-transparency-watcher example.com --state ~/.ct-state.json --fail-on-new \
+    --webhook https://hooks.example/ct --exec 'mail -s "new cert" me@example.com'
 ```
 
 - `--allow-issuer SUBSTR` (repeatable) — substrings of issuer names you expect
@@ -45,17 +64,25 @@ python3 cert_transparency_watcher.py example.com --days 90 --json
   `www`, `mail`, `api`). Use `@` for the bare/apex domain. Any subdomain seen
   in a cert that isn't allowlisted is flagged. Omit entirely to just list
   subdomains without flagging.
+- `--state FILE` — remember every certificate seen (one file can hold many domains).
+  Only certificates **new since the last run** are shown and flagged, so a daily cron
+  job doesn't re-alert on the same certs. `--fail-on-new` flags every new certificate
+  even without allow lists (Cert Spotter-style "tell me about anything new").
+- `--exec CMD` / `--webhook URL` — when something is flagged, run CMD (alert JSON on
+  stdin, `CTW_DOMAIN`/`CTW_ALERTS` in the environment) and/or POST the JSON to URL.
+  If a hook fails the exit code is 2 and the state isn't saved, so the next run
+  alerts again instead of losing the alert.
+- `--source auto|crtsh|certspotter` — default `auto` (crt.sh with retries, then Cert
+  Spotter). `CERTSPOTTER_API_TOKEN` is sent if set (higher rate limits).
 - `--days N` — only show certs issued in the last N days (default 30).
-- `--json` — machine-readable output for piping into your own alerting
-  (same exit codes as the text report).
-- `--crtsh-url TEMPLATE` — query a crt.sh-compatible mirror instead of
-  crt.sh (`{}` is replaced by the URL-encoded query).
+- `--json` — machine-readable output (same exit codes as the text report).
+- `--crtsh-url TEMPLATE` / `--certspotter-url URL` — mirrors or local test servers.
 
 A precertificate and its final certificate (two crt.sh rows, same serial)
 are counted once.
 
-Exit code is `1` if anything was flagged, `0` otherwise — safe to use in cron
-with normal alerting-on-nonzero-exit conventions.
+Exit codes: `1` if anything was flagged, `0` otherwise, `2` if no CT source could be
+queried or parsed, an alert hook failed, or usage was wrong. Python 3.6+.
 
 ## Real example (found while building this)
 
