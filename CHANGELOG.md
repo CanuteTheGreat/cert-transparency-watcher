@@ -2,6 +2,16 @@
 
 All notable changes. Versions are git tags; each tag has a Forgejo release with checksums.
 
+## 1.3.0 - 2026-10-20
+
+- **`--allow-issuer-preset cloudflare`**: allows every CA Cloudflare issues edge certificates from
+  (Cloudflare, Google Trust Services, Let's Encrypt, SSL.com / SSL Corporation). On a Cloudflare-proxied domain
+  `--allow-issuer Cloudflare` alone flagged Cloudflare's own certificates from Google Trust Services
+  (e.g. `CN=WE1`) or Let's Encrypt as an unexpected issuer and exited 1.
+- When `--allow-issuer` names Cloudflare without the preset and a certificate from one of Cloudflare's other CAs
+  is flagged, the text report says so and points at the preset.
+- `--help` and README explain how issuer substrings are matched and why Cloudflare needs more than one.
+
 ## 1.2.1 - 2026-10-17
 
 - A wildcard certificate is its own subdomain label (`*`, or `*.dev` for `*.dev.example.com`) instead of counting as the apex: with `--allow-subdomain @` a new `*.example.com` certificate (valid for every subdomain) used to pass unflagged. Allow it with `--allow-subdomain '*'`.

@@ -21,6 +21,7 @@ Zero cost, zero dependencies beyond the Python standard library + internet acces
 Usage:
     cert-transparency-watcher example.com
     cert-transparency-watcher example.com --allow-issuer "Let's Encrypt" --allow-issuer "DigiCert Inc"
+    cert-transparency-watcher example.com --allow-issuer-preset cloudflare   # a Cloudflare-proxied domain
     cert-transparency-watcher example.com --allow-subdomain www --allow-subdomain mail --days 90
     cert-transparency-watcher example.com --state ~/.ct-state.json --fail-on-new --webhook https://hooks.example/ct
     cert-transparency-watcher example.com --json
@@ -28,7 +29,7 @@ Usage:
 Exit codes: 0 = nothing flagged, 1 = flagged (new, with --state) certificates,
 2 = CT sources unreachable/unparseable, an alert hook failed, or bad usage.
 """
-__version__ = "1.2.1"
+__version__ = "1.3.0"
 
 import argparse
 import json
@@ -45,6 +46,17 @@ from datetime import datetime, timedelta, timezone
 CRTSH_URL = "https://crt.sh/?q={}&output=json"
 CERTSPOTTER_URL = "https://api.certspotter.com/v1/issuances"
 UA = "cert-transparency-watcher/%s (+https://errant.solutions)" % __version__
+
+# --allow-issuer-preset NAME: every CA a provider issues your certificates from, as --allow-issuer
+# substrings. Cloudflare's edge certificates (Universal, Advanced, Total TLS) come from Let's Encrypt,
+# Google Trust Services or SSL.com, and Cloudflare picks (and switches) the CA itself, see
+# https://developers.cloudflare.com/ssl/reference/certificate-authorities/ . In CT logs those issuers
+# read e.g. "C=US, O=Google Trust Services, CN=WE1", "C=US, O=Let's Encrypt, CN=E7" and
+# "C=US, O=SSL Corporation, CN=Cloudflare TLS Issuing ECC CA 4"; older ones
+# "C=US, O=Cloudflare, Inc., CN=Cloudflare Inc ECC CA-3".
+ISSUER_PRESETS = {
+    "cloudflare": ("Cloudflare", "Google Trust Services", "Let's Encrypt", "SSL Corporation", "SSL.com"),
+}
 
 
 class FetchError(Exception):
@@ -141,6 +153,19 @@ def extract_subdomain(name_value, domain):
     return None  # unrelated name in SAN list (e.g. multi-domain cert)
 
 
+def issuer_allowed(issuer, allow):
+    return any(a.lower() in issuer.lower() for a in allow)
+
+
+def cloudflare_hint(args, alerts):
+    """Issuers among the alerts that were flagged only because Cloudflare was allowed by name
+    (--allow-issuer Cloudflare) instead of with --allow-issuer-preset cloudflare."""
+    if "cloudflare" in args.allow_issuer_preset or not any("cloudflare" in a.lower() for a in args.allow_issuer):
+        return []
+    return sorted({r["issuer"] for r in alerts
+                   if r["issuer_flagged"] and issuer_allowed(r["issuer"], ISSUER_PRESETS["cloudflare"])})
+
+
 def cert_key(issuer, serial, names):
     return "{}|{}".format(issuer.strip().lower(), str(serial or ",".join(sorted(names))).lower())
 
@@ -195,8 +220,17 @@ def main(argv=None):
     ap.add_argument("--version", action="version", version="%(prog)s " + __version__)
     ap.add_argument("domain", help="Domain to watch, e.g. example.com (every name under it is included)")
     ap.add_argument("--allow-issuer", action="append", default=[],
-                    help="Substring of an issuer CA name considered expected (repeatable). "
-                         "If omitted, all issuers are reported without flagging.")
+                    help="Substring of an issuer CA name considered expected (repeatable), matched "
+                         "case-insensitively against the whole issuer, e.g. 'C=US, O=Google Trust Services, CN=WE1'. "
+                         "If omitted (and no --allow-issuer-preset), all issuers are reported without flagging. "
+                         "A Cloudflare-proxied domain gets certificates from several CAs, so 'Cloudflare' alone "
+                         "flags its Google Trust Services and Let's Encrypt ones: use --allow-issuer-preset cloudflare.")
+    ap.add_argument("--allow-issuer-preset", action="append", default=[], choices=sorted(ISSUER_PRESETS),
+                    metavar="NAME",
+                    help="Allow every CA a provider issues your certificates from (repeatable). "
+                         "cloudflare: " + ", ".join(ISSUER_PRESETS["cloudflare"]) + " (Cloudflare's Universal, "
+                         "Advanced and Total TLS certificates come from Let's Encrypt, Google Trust Services or "
+                         "SSL.com, and Cloudflare switches between them).")
     ap.add_argument("--allow-subdomain", action="append", default=[],
                     help="Subdomain label considered expected, e.g. 'www' or 'mail' (repeatable). "
                          "'@' means the bare domain, '*' a wildcard certificate for every subdomain ('*.dev' for "
@@ -222,6 +256,9 @@ def main(argv=None):
     if args.fail_on_new and not args.state:
         ap.error("--fail-on-new needs --state")
 
+    allow_issuers = list(args.allow_issuer)
+    for preset in args.allow_issuer_preset:
+        allow_issuers.extend(a for a in ISSUER_PRESETS[preset] if a not in allow_issuers)
     domain = args.domain.lower().strip().rstrip(".")
     try:
         seen = load_state(args.state, domain) if args.state else None
@@ -249,7 +286,7 @@ def main(argv=None):
             continue
         dedupe.add(key)
         subs = {s for s in (extract_subdomain(n, domain) for n in names) if s is not None}
-        issuer_flagged = bool(args.allow_issuer) and not any(a.lower() in issuer.lower() for a in args.allow_issuer)
+        issuer_flagged = bool(allow_issuers) and not issuer_allowed(issuer, allow_issuers)
         unexpected = set()
         if args.allow_subdomain:
             allowed = {a.lower() for a in args.allow_subdomain}
@@ -306,6 +343,11 @@ def main(argv=None):
         print("    provider, a forgotten subdomain, or a legit CA you haven't allowlisted yet.")
         print("    But worth a look: unexpected certs are the first sign of subdomain takeover")
         print("    or CA-level misissuance.")
+        hint = cloudflare_hint(args, alerts)
+        if hint:
+            print("    Note: Cloudflare also issues its edge certificates from {}; on a Cloudflare-proxied".format(
+                "; ".join(hint)))
+            print("    domain use --allow-issuer-preset cloudflare instead of --allow-issuer Cloudflare.")
         return 1
     print("No flags. (Note: flags only trigger if you passed --allow-issuer/--allow-subdomain"
           + ("/--fail-on-new" if args.state else "") + " —")

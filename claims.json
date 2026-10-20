@@ -63,6 +63,26 @@
    ]
   },
   {
+   "id": "issuer-preset",
+   "text": "`--allow-issuer-preset cloudflare` (repeatable, combines with `--allow-issuer`)",
+   "also": [
+    "So `--allow-issuer Cloudflare` alone flags Cloudflare's own\ncertificates as an unexpected issuer (the report then adds a note pointing here)",
+    "It allows issuers containing `Cloudflare`, `Google Trust Services`, `Let's Encrypt`,\n`SSL Corporation` or `SSL.com`."
+   ],
+   "tests": [
+    "tests/test_contract.py::TestCloudflarePreset::test_allow_issuer_cloudflare_alone_flags_cloudflares_other_cas",
+    "tests/test_contract.py::TestCloudflarePreset::test_preset_allows_every_cloudflare_ca_and_still_flags_others",
+    "tests/test_contract.py::TestCloudflarePreset::test_preset_combines_with_allow_issuer",
+    "tests/test_contract.py::TestCloudflarePreset::test_no_note_without_cloudflare_in_the_allow_list",
+    "tests/test_contract.py::TestCloudflarePreset::test_preset_with_subdomains_and_state_still_reports_new_certificates",
+    "tests/test_contract.py::TestCloudflarePreset::test_unknown_preset_is_bad_usage",
+    "tests/test_contract.py::TestHelp::test_help_text"
+   ],
+   "flags": [
+    "--allow-issuer-preset"
+   ]
+  },
+  {
    "id": "subdomain-opt",
    "text": "`--allow-subdomain LABEL` (repeatable)",
    "tests": [

@@ -401,11 +401,104 @@ class TestReport(Base):
         self.assertEqual((out["version"], out["new"], out["days"], out["flagged"]), (VERSION, None, 30, 0))
 
 
+CF_GTS = "C=US, O=Google Trust Services, CN=WE1"           # issuers seen in CT for a real Cloudflare-proxied
+CF_SSLCOM = "C=US, O=SSL Corporation, CN=Cloudflare TLS Issuing ECC CA 4"  # domain (errant.solutions, 2026-10)
+CF_LE = "C=US, O=Let's Encrypt, CN=E7"
+CF_OLD = "C=US, O=Cloudflare, Inc., CN=Cloudflare Inc ECC CA-3"
+AMAZON = "C=US, O=Amazon, CN=Amazon RSA 2048 M04"
+
+
+class TestCloudflarePreset(Base):
+    """A Cloudflare-proxied domain: Cloudflare issues its edge certificates from several CAs, and only the
+    SSL.com ones carry its name. --allow-issuer Cloudflare alone must not be the only way to allow them."""
+    def setUp(self):
+        super().setUp()
+        rows = [(1, CF_GTS), (2, CF_SSLCOM), (3, CF_LE), (4, CF_OLD), (5, AMAZON)]
+        CRTSH["cf.test"] = [{"id": i, "issuer_name": iss, "name_value": "cf.test\n*.cf.test", "not_before": ago(i),
+                             "serial_number": "%02d" % i} for i, iss in rows]
+        SPOTTER["cf.test"] = [[{"id": str(100 + i), "tbs_sha256": "t%d" % i, "dns_names": ["cf.test"],
+                                "not_before": ago(i) + "Z", "issuer": {"name": iss}} for i, iss in rows]]
+
+    def flagged(self, out):
+        return sorted(c["issuer"] for c in out["certs"] if c["issuer_flagged"])
+
+    def test_allow_issuer_cloudflare_alone_flags_cloudflares_other_cas(self):
+        """The reported false positive, kept as documented behaviour: the substring only matches issuers
+        that contain it, and the text report then points at the preset."""
+        p, out = run_json("cf.test", "--allow-issuer", "Cloudflare")
+        self.assertEqual(p.returncode, 1)
+        self.assertEqual(self.flagged(out), sorted([AMAZON, CF_GTS, CF_LE]))
+        p = run("cf.test", "--allow-issuer", "cloudflare")
+        self.assertEqual(p.returncode, 1)
+        tail = p.stdout.splitlines()[-2:]
+        self.assertEqual(tail, [
+            "    Note: Cloudflare also issues its edge certificates from %s; %s; on a Cloudflare-proxied" % (
+                CF_GTS, CF_LE),
+            "    domain use --allow-issuer-preset cloudflare instead of --allow-issuer Cloudflare."])
+
+    def test_preset_allows_every_cloudflare_ca_and_still_flags_others(self):
+        for source in ("crtsh", "certspotter"):
+            with self.subTest(source=source):
+                p, out = run_json("cf.test", "--allow-issuer-preset", "cloudflare", "--source", source)
+                self.assertEqual((p.returncode, out["flagged"]), (1, 1), p.stderr)
+                self.assertEqual(self.flagged(out), [AMAZON])
+                self.assertEqual(len(out["certs"]), 5)
+        p = run("cf.test", "--allow-issuer-preset", "cloudflare")
+        self.assertEqual(p.returncode, 1)
+        self.assertIn("unexpected issuer: " + AMAZON, p.stdout)
+        self.assertNotIn("Note: Cloudflare", p.stdout)
+        self.assertEqual(p.stdout.count("\u26a0\ufe0f  unexpected issuer"), 1)
+
+    def test_preset_combines_with_allow_issuer(self):
+        p, out = run_json("cf.test", "--allow-issuer-preset", "cloudflare", "--allow-issuer", "amazon",
+                          "--allow-issuer-preset", "cloudflare")
+        self.assertEqual((p.returncode, out["flagged"], self.flagged(out)), (0, 0, []))
+        p = run("cf.test", "--allow-issuer-preset", "cloudflare", "--allow-issuer", "Amazon")
+        self.assertEqual(p.returncode, 0)
+        self.assertIn("No flags.", p.stdout)
+        p = run("cf.test", "--allow-issuer", "Cloudflare", "--allow-issuer", "Amazon",
+                "--allow-issuer-preset", "cloudflare")
+        self.assertEqual(p.returncode, 0)
+
+    def test_no_note_without_cloudflare_in_the_allow_list(self):
+        p = run("cf.test", "--allow-issuer", "Amazon")
+        self.assertEqual(p.returncode, 1)
+        self.assertNotIn("Note: Cloudflare", p.stdout)
+        CRTSH["cf.test"] = [r for r in CRTSH["cf.test"] if r["issuer_name"] == AMAZON]
+        p = run("cf.test", "--allow-issuer", "Cloudflare")   # flagged, but not by one of Cloudflare's CAs
+        self.assertEqual(p.returncode, 1)
+        self.assertNotIn("Note: Cloudflare", p.stdout)
+
+    def test_preset_with_subdomains_and_state_still_reports_new_certificates(self):
+        state = os.path.join(self.tmp, "state.json")
+        p, out = run_json("cf.test", "--allow-issuer-preset", "cloudflare", "--allow-issuer", "Amazon",
+                          "--state", state, "--fail-on-new")
+        self.assertEqual((p.returncode, out["flagged"]), (1, 5))
+        CRTSH["cf.test"].append({"id": 9, "issuer_name": CF_LE, "name_value": "cf.test", "not_before": ago(0),
+                                 "serial_number": "09"})
+        p, out = run_json("cf.test", "--allow-issuer-preset", "cloudflare", "--allow-subdomain", "@",
+                          "--allow-subdomain", "*", "--state", state, "--fail-on-new")
+        self.assertEqual((p.returncode, out["flagged"], [c["id"] for c in out["certs"] if c["flagged"]]), (1, 1, [9]))
+
+    def test_unknown_preset_is_bad_usage(self):
+        p = run("cf.test", "--allow-issuer-preset", "aws")
+        self.assertEqual(p.returncode, 2)
+        self.assertIn("argument --allow-issuer-preset: invalid choice: 'aws' (choose from", p.stderr)
+        self.assertIn("cloudflare", p.stderr)
+
+
 HELP = [  # what `--help` tells a user, option by option (argparse wraps lines; compared without whitespace)
     "Monitor Certificate Transparency logs for a domain",
     "domain Domain to watch, e.g. example.com (every name under it is included)",
-    "--allow-issuer ALLOW_ISSUER Substring of an issuer CA name considered expected (repeatable). "
-    "If omitted, all issuers are reported without flagging.",
+    "--allow-issuer ALLOW_ISSUER Substring of an issuer CA name considered expected (repeatable), matched "
+    "case-insensitively against the whole issuer, e.g. 'C=US, O=Google Trust Services, CN=WE1'. "
+    "If omitted (and no --allow-issuer-preset), all issuers are reported without flagging. "
+    "A Cloudflare-proxied domain gets certificates from several CAs, so 'Cloudflare' alone flags its Google Trust "
+    "Services and Let's Encrypt ones: use --allow-issuer-preset cloudflare.",
+    "--allow-issuer-preset NAME Allow every CA a provider issues your certificates from (repeatable). "
+    "cloudflare: Cloudflare, Google Trust Services, Let's Encrypt, SSL Corporation, SSL.com (Cloudflare's Universal, "
+    "Advanced and Total TLS certificates come from Let's Encrypt, Google Trust Services or SSL.com, and Cloudflare "
+    "switches between them).",
     "--allow-subdomain ALLOW_SUBDOMAIN Subdomain label considered expected, e.g. 'www' or 'mail' (repeatable). "
     "'@' means the bare domain, '*' a wildcard certificate for every subdomain ('*.dev' for *.dev.<domain>). "
     "If omitted, all subdomains are reported without flagging.",

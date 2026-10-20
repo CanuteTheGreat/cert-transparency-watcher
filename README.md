@@ -34,7 +34,7 @@ publicly, for free — but almost nobody looks at it until after an incident.
 
 ```sh
 pipx install git+https://git.canutethegreat.com/CanuteTheGreat/cert-transparency-watcher.git        # latest release branch; puts `cert-transparency-watcher` on PATH
-pipx install git+https://git.canutethegreat.com/CanuteTheGreat/cert-transparency-watcher.git@v1.2.1  # a pinned release
+pipx install git+https://git.canutethegreat.com/CanuteTheGreat/cert-transparency-watcher.git@v1.3.0  # a pinned release
 brew install canutethegreat/errant-tools/cert-transparency-watcher   # after: brew tap canutethegreat/errant-tools https://git.canutethegreat.com/CanuteTheGreat/homebrew-errant-tools
 scoop install errant-tools/cert-transparency-watcher                 # after: scoop bucket add errant-tools https://git.canutethegreat.com/CanuteTheGreat/scoop-errant-tools
 ```
@@ -57,9 +57,13 @@ cert-transparency-watcher example.com --state ~/.ct-state.json --fail-on-new \
 ```
 
 - `--allow-issuer SUBSTR` (repeatable) — substrings of issuer names you expect
-  (e.g. `"Let's Encrypt"`, `"Cloudflare"`, `"DigiCert"`, `"Amazon"`). Any cert
-  whose issuer doesn't match any allowed substring is flagged. Omit entirely
-  to just list issuers without flagging.
+  (e.g. `"Let's Encrypt"`, `"Google Trust Services"`, `"DigiCert"`, `"Amazon"`),
+  matched case-insensitively against the whole issuer as CT logs record it
+  (`C=US, O=Google Trust Services, CN=WE1`). Any cert whose issuer doesn't match
+  any allowed substring is flagged. Omit entirely to just list issuers without flagging.
+- `--allow-issuer-preset cloudflare` (repeatable, combines with `--allow-issuer`) —
+  allows every CA Cloudflare issues edge certificates from. See
+  [Cloudflare-proxied domains](#cloudflare-proxied-domains).
 - `--allow-subdomain LABEL` (repeatable) — subdomain labels you expect (e.g.
   `www`, `mail`, `api`). Use `@` for the bare/apex domain and `*` for a wildcard
   certificate (`*.example.com`, valid for every subdomain; `*.dev` for `*.dev.example.com`),
@@ -82,6 +86,26 @@ cert-transparency-watcher example.com --state ~/.ct-state.json --fail-on-new \
 
 A precertificate and its final certificate (two crt.sh rows, same serial)
 are counted once.
+
+### Cloudflare-proxied domains
+
+Cloudflare's Universal, Advanced and Total TLS edge certificates are issued by
+[Let's Encrypt, Google Trust Services or SSL.com](https://developers.cloudflare.com/ssl/reference/certificate-authorities/),
+and Cloudflare picks the CA (and keeps a backup certificate from a second CA). In CT
+logs only the SSL.com ones carry Cloudflare's name (`O=SSL Corporation, CN=Cloudflare
+TLS Issuing ECC CA 4`); the others read `O=Google Trust Services, CN=WE1` or
+`O=Let's Encrypt, CN=E7`. So `--allow-issuer Cloudflare` alone flags Cloudflare's own
+certificates as an unexpected issuer (the report then adds a note pointing here). Use
+the preset instead:
+
+```
+cert-transparency-watcher example.com --allow-issuer-preset cloudflare
+```
+
+It allows issuers containing `Cloudflare`, `Google Trust Services`, `Let's Encrypt`,
+`SSL Corporation` or `SSL.com`. Those are whole public CAs, so a certificate someone
+else got from Let's Encrypt for your domain passes the issuer check: pair the preset
+with `--allow-subdomain` and/or `--state --fail-on-new` to still see every new certificate.
 
 Exit codes: `1` if anything was flagged, `0` otherwise, `2` if no CT source could be
 queried or parsed, an alert hook failed, or usage was wrong. Python 3.6+.
