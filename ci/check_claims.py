@@ -65,19 +65,23 @@ def test_exists(ref, cache):
         repo, _, rel = path[5:].partition("/")
         url = "%s/%s/raw/branch/main/%s" % (FORGEJO, repo, rel)
         text = None
-        for attempt in range(5):
+        last = "no attempt"
+        delays = (5, 10, 20, 30, 45)  # bounded backoff (~110 s): the forge can be briefly unreachable from a runner
+        for attempt in range(len(delays) + 1):
             try:
                 with urllib.request.urlopen(url, timeout=30) as r:
                     text = r.read().decode("utf-8", "replace")
                 break
             except urllib.error.HTTPError as e:
-                if e.code == 404:
+                if e.code == 404:  # genuinely absent: a real failure, never retried
                     return "no such file %s (%s)" % (path, url)
-                time.sleep(3)
-            except (OSError, http.client.HTTPException):
-                time.sleep(3)
+                last = "HTTP %s" % e.code
+            except (OSError, http.client.HTTPException) as e:
+                last = "%s: %s" % (type(e).__name__, e)
+            if attempt < len(delays):
+                time.sleep(delays[attempt])
         if text is None:
-            return "could not fetch %s" % url
+            return "could not fetch %s after %d attempts (last error: %s)" % (url, len(delays) + 1, last)
         if needle and needle not in text:
             return "%s does not contain %r" % (path, needle)
         return None
