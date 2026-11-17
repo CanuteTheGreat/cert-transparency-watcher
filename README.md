@@ -42,6 +42,7 @@ scoop install errant-tools/cert-transparency-watcher                 # after: sc
 Or download the single file (stdlib-only Python 3.6+) and run it directly:
 `curl -fsSLO https://errant.solutions/downloads/cert_transparency_watcher.py && python3 cert_transparency_watcher.py --help`.
 Every [release](https://git.canutethegreat.com/CanuteTheGreat/cert-transparency-watcher/releases) has a changelog, the wheel, the sdist and a `SHA256SUMS` file.
+The checksums are signed (`SHA256SUMS.asc`). Verify: `gpg --verify SHA256SUMS.asc SHA256SUMS` (key: https://errant.solutions/signing-key.asc, fingerprint `5439 3549 39B9 C055 2A68  E9BB E323 A6A3 AC0A 6506`, also in `keys/release-signing.asc`).
 Not on PyPI yet, so plain `pipx install cert-transparency-watcher` doesn't work until it's published there.
 
 ## Usage
