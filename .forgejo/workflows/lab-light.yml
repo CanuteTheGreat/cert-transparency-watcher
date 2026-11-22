@@ -1,0 +1,23 @@
+name: lab-light
+
+# Cheap checks that fit a 2 GB / 2 vCPU ephemeral runner (label lab-light: a small guest that spare lab capacity starts on demand, takes only jobs that fit, and goes away).
+# ADDITIVE: the gating checks of this repo run on their own labels; this workflow is a second, light-weight run of the same kind of check on separate hardware and never
+# blocks anything. It only runs on the default branch, lab-light-* branches and by hand, so branch pushes never queue behind a laptop that is busy.
+on:
+  push:
+    branches: [main, master, 'lab-light-*']
+  workflow_dispatch: {}
+
+# only the newest unstarted run per ref waits (the supersede sweeper replaces older ones); a run that has started is never cancelled
+concurrency:
+  group: "replace:${{ github.workflow }}@${{ github.ref }}"
+  cancel-in-progress: false
+
+jobs:
+  unit-tests-light:
+    runs-on: lab-light
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests (python 3.14, capped container)
+        run: sh ci/run-tests.sh 3.14
