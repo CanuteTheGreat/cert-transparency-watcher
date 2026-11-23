@@ -92,7 +92,7 @@
   },
   {
    "id": "state",
-   "text": "`--state FILE` — remember every certificate seen",
+   "text": "`--state FILE` \u2014 remember every certificate seen",
    "tests": [
     "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_state_reports_only_new_certificates",
     "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_fail_on_new",
@@ -140,7 +140,7 @@
   },
   {
    "id": "days",
-   "text": "`--days N` — only show certs issued in the last N days (default 30).",
+   "text": "`--days N` \u2014 only show certs issued in the last N days (default 30).",
    "tests": [
     "tests/test_cert_transparency_watcher.py::TestWatcher::test_days_option",
     "tests/test_accuracy.py::TestCorpus::test_verdicts"
@@ -148,7 +148,7 @@
   },
   {
    "id": "json",
-   "text": "`--json` — machine-readable output",
+   "text": "`--json` \u2014 machine-readable output",
    "tests": [
     "tests/test_cert_transparency_watcher.py::TestWatcher::test_lists_recent_certs_without_flags",
     "tests/test_cert_transparency_watcher.py::TestWatcher::test_text_report_and_exit_code",
@@ -177,13 +177,42 @@
   },
   {
    "id": "exit-codes",
-   "text": "Exit codes: `1` if anything was flagged",
+   "text": "`1` if anything was flagged",
    "tests": [
     "tests/test_cert_transparency_watcher.py::TestWatcher::test_text_report_and_exit_code",
     "tests/test_cert_transparency_watcher.py::TestWatcher::test_gives_up_with_exit_2",
     "tests/test_cert_transparency_watcher.py::TestWatcher::test_unparseable_response_exit_2",
     "tests/test_cert_transparency_watcher.py::TestFallbackStateAndHooks::test_failed_hook_is_exit_2_and_keeps_alerting",
-    "tests/test_contract.py::TestErrors::test_all_sources_down_names_each_failure"
+    "tests/test_contract.py::TestErrors::test_all_sources_down_names_each_failure",
+    "tests/test_cli_contract.py::TestExitCodes::test_clean_is_0",
+    "tests/test_cli_contract.py::TestExitCodes::test_findings_is_1",
+    "tests/test_cli_contract.py::TestExitCodes::test_bad_args_is_2_with_message_on_stderr",
+    "tests/test_cli_contract.py::TestExitCodes::test_unreadable_state_file_is_2",
+    "tests/test_cli_contract.py::TestExitCodes::test_unreachable_source_keeps_documented_legacy_code_2",
+    "tests/test_cli_contract.py::TestExitCodes::test_unexpected_error_is_3_on_stderr_not_a_traceback_exit_1"
+   ]
+  },
+  {
+   "id": "quiet",
+   "text": "print nothing on stdout, so the exit code is the whole answer",
+   "flags": [
+    "--quiet"
+   ],
+   "tests": [
+    "tests/test_cli_contract.py::TestQuiet::test_quiet_prints_nothing_but_keeps_exit_code",
+    "tests/test_cli_contract.py::TestQuiet::test_quiet_still_updates_state_and_runs_hooks",
+    "tests/test_cli_contract.py::TestQuiet::test_without_quiet_the_report_is_printed"
+   ]
+  },
+  {
+   "id": "json-schema",
+   "text": "`schema_version` (currently 1)",
+   "tests": [
+    "tests/test_cli_contract.py::TestJson::test_clean",
+    "tests/test_cli_contract.py::TestJson::test_findings",
+    "tests/test_cli_contract.py::TestJson::test_with_state_counts_new_certificates",
+    "tests/test_cli_contract.py::TestJson::test_usage_error_leaves_stdout_empty",
+    "tests/test_cli_contract.py::TestJson::test_schema_rejects_a_document_without_the_contract_keys"
    ]
   },
   {

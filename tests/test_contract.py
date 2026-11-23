@@ -514,7 +514,8 @@ HELP = [  # what `--help` tells a user, option by option (argparse wraps lines; 
     "(default: https://crt.sh/?q={}&output=json) -- for a mirror or a local test server",
     "--certspotter-url URL Cert Spotter issuances endpoint (default: https://api.certspotter.com/v1/issuances; "
     "CERTSPOTTER_API_TOKEN is sent if set)",
-    "Exit codes: 0 nothing flagged, 1 flagged certificates, 2 CT/hook failure or bad usage.",
+    "-q, --quiet print nothing on stdout; the exit code (and errors on stderr) are the result",
+    "Exit codes: 0 nothing flagged, 1 flagged certificates, 2 CT/hook failure or bad usage, 3 unexpected error.",
 ]
 
 

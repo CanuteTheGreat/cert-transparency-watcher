@@ -34,7 +34,7 @@ publicly, for free — but almost nobody looks at it until after an incident.
 
 ```sh
 pipx install git+https://git.canutethegreat.com/CanuteTheGreat/cert-transparency-watcher.git        # latest release branch; puts `cert-transparency-watcher` on PATH
-pipx install git+https://git.canutethegreat.com/CanuteTheGreat/cert-transparency-watcher.git@v1.3.0  # a pinned release
+pipx install git+https://git.canutethegreat.com/CanuteTheGreat/cert-transparency-watcher.git@v1.4.0  # a pinned release
 brew install canutethegreat/errant-tools/cert-transparency-watcher   # after: brew tap canutethegreat/errant-tools https://git.canutethegreat.com/CanuteTheGreat/homebrew-errant-tools
 scoop install errant-tools/cert-transparency-watcher                 # after: scoop bucket add errant-tools https://git.canutethegreat.com/CanuteTheGreat/scoop-errant-tools
 ```
@@ -82,7 +82,8 @@ cert-transparency-watcher example.com --state ~/.ct-state.json --fail-on-new \
 - `--source auto|crtsh|certspotter` — default `auto` (crt.sh with retries, then Cert
   Spotter). `CERTSPOTTER_API_TOKEN` is sent if set (higher rate limits).
 - `--days N` — only show certs issued in the last N days (default 30).
-- `--json` — machine-readable output (same exit codes as the text report).
+- `--json` — machine-readable output (same exit codes as the text report): one object with `schema_version` (currently 1), `tool`, `version`, `exit_code`, `domain`, `source`, `days`, `flagged`, `new` and `certs`; the JSON Schema is [schema/cert-transparency-watcher.schema.json](schema/cert-transparency-watcher.schema.json).
+- `--quiet` (`-q`) — print nothing on stdout, so the exit code is the whole answer (hooks and `--state` still run; errors always go to stderr).
 - `--crtsh-url TEMPLATE` / `--certspotter-url URL` — mirrors or local test servers.
 
 A precertificate and its final certificate (two crt.sh rows, same serial)
@@ -108,8 +109,8 @@ It allows issuers containing `Cloudflare`, `Google Trust Services`, `Let's Encry
 else got from Let's Encrypt for your domain passes the issuer check: pair the preset
 with `--allow-subdomain` and/or `--state --fail-on-new` to still see every new certificate.
 
-Exit codes: `1` if anything was flagged, `0` otherwise, `2` if no CT source could be
-queried or parsed, an alert hook failed, or usage was wrong. Python 3.6+.
+Exit codes (the shared Errant Solutions CLI contract, see [docs/CLI-CONTRACT.md](docs/CLI-CONTRACT.md)): `1` if anything was flagged, `0` otherwise, `2` if usage was wrong or, legacy and kept so existing scripts keep working, no CT source could be
+queried or parsed, an alert hook failed or the `--state` file can't be read or written, `3` for an unexpected runtime error. Python 3.6+.
 
 ## Real example (found while building this)
 

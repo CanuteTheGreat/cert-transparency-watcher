@@ -26,10 +26,13 @@ Usage:
     cert-transparency-watcher example.com --state ~/.ct-state.json --fail-on-new --webhook https://hooks.example/ct
     cert-transparency-watcher example.com --json
 
-Exit codes: 0 = nothing flagged, 1 = flagged (new, with --state) certificates,
-2 = CT sources unreachable/unparseable, an alert hook failed, or bad usage.
+Exit codes (shared CLI contract, docs/CLI-CONTRACT.md): 0 = nothing flagged, 1 = flagged (new,
+with --state) certificates, 2 = bad usage, or (legacy, kept) CT sources unreachable/unparseable,
+an alert hook failed or the --state file can't be written, 3 = unexpected runtime error.
+--json prints one object with schema_version, tool, version and exit_code; --quiet prints
+nothing on stdout.
 """
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 import argparse
 import json
@@ -215,8 +218,17 @@ def run_hooks(args, payload):
 
 
 def main(argv=None):
+    """Entry point. Any unexpected exception is a runtime error (exit 3), never a bare traceback exit 1."""
+    try:
+        return _main(argv)
+    except Exception as exc:  # SystemExit (argparse usage errors, exit 2) is not an Exception
+        print("cert-transparency-watcher: error: %s: %s" % (type(exc).__name__, exc), file=sys.stderr)
+        return 3
+
+
+def _main(argv=None):
     ap = argparse.ArgumentParser(prog="cert-transparency-watcher", description="Monitor Certificate Transparency logs for a domain",
-                                 epilog="Exit codes: 0 nothing flagged, 1 flagged certificates, 2 CT/hook failure or bad usage.")
+                                 epilog="Exit codes: 0 nothing flagged, 1 flagged certificates, 2 CT/hook failure or bad usage, 3 unexpected error.")
     ap.add_argument("--version", action="version", version="%(prog)s " + __version__)
     ap.add_argument("domain", help="Domain to watch, e.g. example.com (every name under it is included)")
     ap.add_argument("--allow-issuer", action="append", default=[],
@@ -252,6 +264,8 @@ def main(argv=None):
                          "(default: %(default)s) -- for a mirror or a local test server")
     ap.add_argument("--certspotter-url", default=CERTSPOTTER_URL, metavar="URL",
                     help="Cert Spotter issuances endpoint (default: %(default)s; CERTSPOTTER_API_TOKEN is sent if set)")
+    ap.add_argument("-q", "--quiet", action="store_true",
+                    help="print nothing on stdout; the exit code (and errors on stderr) are the result")
     args = ap.parse_args(argv)
     if args.fail_on_new and not args.state:
         ap.error("--fail-on-new needs --state")
@@ -316,11 +330,15 @@ def main(argv=None):
             print("ERROR: can't write --state {}: {}".format(args.state, e), file=sys.stderr)
             return 2
 
+    code = 1 if alerts else 0
+    if args.quiet:
+        return code
     if args.json:
-        print(json.dumps({"version": __version__, "domain": domain, "source": source, "days": args.days,
+        print(json.dumps({"schema_version": 1, "tool": "cert-transparency-watcher", "version": __version__,
+                          "exit_code": code, "domain": domain, "source": source, "days": args.days,
                           "flagged": len(alerts), "new": sum(1 for r in results if r["new"]) if args.state else None,
                           "certs": results}, indent=2))
-        return 1 if alerts else 0
+        return code
 
     shown = [r for r in results if r["new"]] if args.state else results
     label = " new since the last run" if args.state else ""
